@@ -65,16 +65,15 @@ jobs:
           # sets environment variables that available in next steps via $ {{ env.PR_... }} notation
           cd REPO
           python ../DINAR/workflow-files/analyze-modules.py updated ${{ secrets.GITHUB_TOKEN }} ${{ github.repository }} ${{ github.event.number }}
-      - name: HOW TO RUN LOCALLY
+      - name: HOW TO RUN ODOO LOCALLY
         #if: "env.PR_MODULES != ''"
         run: |
           cat << 'EOF'
-          To test updates run:
+          To try updates execute:
 
               WORKDIR=/tmp/DINAR/${{ github.repository }}-${{ github.event.number }}/
               mkdir -p $WORKDIR
               cd $WORKDIR
-              # TODO use fixed version instead of master
               curl https://raw.githubusercontent.com/itpp-labs/DINAR/master/local-files/docker-compose.yml > docker-compose.yml
               export REGISTRY=docker.pkg.github.com REPOSITORY=${{ github.repository }} REPO_NAME=$(echo ${{ github.repository }} | sed "s;.*/;;") VERSION=${{ github.event.pull_request.base.ref }}
               git clone --depth=1 --branch $VERSION git@github.com:${{ github.repository }} pr-files
@@ -261,3 +260,63 @@ jobs:
           export ODOO_EXTRA_ARG=--test-enable
           docker-compose -p DINAR -f DINAR/workflow-files/docker-compose-DINAR-pr.yml config
           docker-compose -p DINAR -f DINAR/workflow-files/docker-compose-DINAR-pr.yml up --abort-on-container-exit
+      - name: HOW TO RUN TESTS LOCALLY
+        # TODO make similar for Quick Tests
+        if: always()
+        run: |
+          cat << EOF
+          To run tests updates execute:
+
+              WORKDIR=/tmp/DINAR/${{ github.repository }}-${{ github.event.number }}/
+              mkdir -p \$WORKDIR
+              cd \$WORKDIR
+              curl https://raw.githubusercontent.com/itpp-labs/DINAR/master/workflow-files/docker-compose-DINAR-pr.yml > docker-compose.yml
+              export REGISTRY=docker.pkg.github.com REPOSITORY=${{ github.repository }} VERSION=${{ github.event.pull_request.base.ref }} IMAGE_ODOO=$IMAGE_ODOO IMAGE_DB=$IMAGE_DB
+              git clone --depth=1 --branch \$VERSION git@github.com:${{ github.repository }} pr-files
+              # Version in PR
+              REVISION=${{ github.event.pull_request.head.sha}}
+              # Version after merging
+              REVISION=pull/${{ github.event.number}}/merge
+              git -C pr-files fetch origin \$REVISION
+              git -C pr-files checkout FETCH_HEAD
+              docker-compose pull
+              export ODOO_EXTRA_ARG=--test-enable
+              export MODULES="${{ env.ALL_MODULES }}"
+              export LOAD_MODULES="${{ env.ALL_MODULES_LOAD }}"
+              export PR_FILES=./pr-files/
+          EOF
+
+          if [ "${{ github.event.pull_request.base.ref }}" == "10.0" ]; then
+          cat << 'EOF'
+
+              # workaround for odoo 10.0
+              docker-compose up -d odoo
+              docker-compose exec odoo click-odoo -i
+              # EXEC:
+              # env['ir.module.module'].update_list()
+              # env.cr.commit()
+              # exit()
+              docker-compose stop odoo
+
+          EOF
+          fi
+
+          if [ "$ARTIFACT" != "empty" ]; then
+
+              # download artifact
+              echo $GITHUB_RUN_ID
+              # TODO
+              # unpack artifact
+              # TODO
+              # download script
+              curl https://raw.githubusercontent.com/itpp-labs/DINAR/workflow-files/load-docker-layers.sh > load-docker-layers.sh
+              # apply script
+              # TODO
+          fi
+
+
+          cat << 'EOF'
+              docker-compose up
+          EOF
+          # TODO: post this message when Github guys make access to post message in PR
+          #> Sent by [DINAR :construction_worker_man:](https://github.com/itpp-labs/DINAR) via `.github/workflows/DINAR-pr.yml`
